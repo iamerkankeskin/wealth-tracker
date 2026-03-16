@@ -1,4 +1,5 @@
 {% extends 'tracker/base.html' %}
+{% load l10n %}
 
 {% block title %}Dashboard — Wealth Tracker{% endblock %}
 
@@ -39,7 +40,7 @@
 <!-- Kategori Kartları -->
 <div class="category-grid">
     {% for cat_name, cat_val in category_totals.items %}
-    <div class="category-card" data-usd="{{ cat_val|floatformat:2 }}">
+    <div class="category-card" data-usd="{{ cat_val|unlocalize }}">
         <div class="cat-name">{{ cat_name }}</div>
         <div class="cat-value-usd cat-value">${{ cat_val|floatformat:2 }}</div>
         <div class="cat-value-try cat-value hidden"></div>
@@ -152,6 +153,7 @@
     const totalTRY = document.getElementById('total-try');
     const labelUSD = document.getElementById('label-usd');
     const labelTRY = document.getElementById('label-try');
+    const CURRENCY_MODE_KEY = 'wealth_currency_mode';
 
     const catValueEls = document.querySelectorAll('.cat-value-usd');
     const catValuesTRY = document.querySelectorAll('.cat-value-try');
@@ -161,7 +163,11 @@
 
     // Category TRY değerlerini data-usd üzerinden üret
     categoryCards.forEach((card, i) => {
-        const usdRaw = (card.dataset.usd || '0').replace(',', '.');
+        const usdRaw = (card.dataset.usd || '0')
+            .trim()
+            .replace(/\s/g, '')
+            .replace(/\.(?=\d{3}(\D|$))/g, '')
+            .replace(',', '.');
         const usdVal = Number(usdRaw);
         if (!Number.isNaN(usdVal) && catValuesTRY[i]) {
             catValuesTRY[i].textContent = '₺' + (usdVal * USD_TRY).toLocaleString('tr-TR', {
@@ -185,9 +191,26 @@
     }
 
     if (toggle) {
+        try {
+            const savedMode = localStorage.getItem(CURRENCY_MODE_KEY);
+            if (savedMode === 'TRY') {
+                toggle.checked = true;
+            } else if (savedMode === 'USD') {
+                toggle.checked = false;
+            }
+        } catch (e) {
+            // localStorage erişimi engelliyse varsayılan davranışla devam et.
+        }
+
         applyCurrencyMode(toggle.checked);
         toggle.addEventListener('change', function() {
-            applyCurrencyMode(this.checked);
+            const isTRY = this.checked;
+            applyCurrencyMode(isTRY);
+            try {
+                localStorage.setItem(CURRENCY_MODE_KEY, isTRY ? 'TRY' : 'USD');
+            } catch (e) {
+                // localStorage erişimi engelliyse sessizce geç.
+            }
         });
     }
 
