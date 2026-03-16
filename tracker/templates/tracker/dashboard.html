@@ -1,0 +1,215 @@
+{% extends 'tracker/base.html' %}
+
+{% block title %}Dashboard — Wealth Tracker{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <div>
+        <h1 class="page-title">Güncel Servetim</h1>
+        <p class="last-updated">Son güncelleme: {{ last_updated|date:"d.m.Y H:i" }}</p>
+    </div>
+    <div class="header-actions">
+        <!-- USD / TRY Switch -->
+        <div class="currency-switch">
+            <span class="switch-label active-label" id="label-usd">USD</span>
+            <label class="toggle">
+                <input type="checkbox" id="currency-toggle">
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="switch-label" id="label-try">TRY</span>
+        </div>
+        <button class="btn btn-secondary" id="refresh-btn" onclick="refreshPrices()">
+            <span id="refresh-icon">↻</span> Güncelle
+        </button>
+    </div>
+</div>
+
+<!-- Toplam Servet Kartı -->
+<div class="wealth-card">
+    <div class="wealth-label">Toplam Servet</div>
+    <div class="wealth-amount">
+        <span class="amount-usd" id="total-usd">${{ total_usd|floatformat:2 }}</span>
+        <span class="amount-try hidden" id="total-try">₺{{ total_try|floatformat:"2g" }}</span>
+    </div>
+    <div class="exchange-rate">
+        1 USD = <span id="rate-display">{{ usd_try_rate|floatformat:2 }}</span> ₺
+    </div>
+</div>
+
+<!-- Kategori Kartları -->
+<div class="category-grid">
+    {% for cat_name, cat_val in category_totals.items %}
+    <div class="category-card" data-usd="{{ cat_val|floatformat:2 }}">
+        <div class="cat-name">{{ cat_name }}</div>
+        <div class="cat-value-usd cat-value">${{ cat_val|floatformat:2 }}</div>
+        <div class="cat-value-try cat-value hidden"></div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Grafik + Tablo -->
+<div class="dashboard-grid">
+    <div class="chart-card">
+        <h2 class="card-title">Dağılım</h2>
+        <div class="chart-wrapper">
+            <canvas id="portfolioChart"></canvas>
+        </div>
+    </div>
+
+    <div class="table-card">
+        <h2 class="card-title">Varlık Özeti</h2>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Varlık</th>
+                        <th>Tip</th>
+                        <th>Miktar</th>
+                        <th class="show-usd">Değer (USD)</th>
+                        <th class="show-try hidden">Değer (TRY)</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in assets %}
+                    <tr>
+                        <td>
+                            <div class="asset-name">{{ item.asset.name }}</div>
+                            {% if item.asset.symbol %}<div class="asset-symbol">{{ item.asset.symbol }}</div>{% endif %}
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ item.asset.asset_type }}">{{ item.asset.get_asset_type_display }}</span>
+                        </td>
+                        <td>{{ item.asset.quantity|floatformat:0 }}</td>
+                        <td class="show-usd">${{ item.value_usd|floatformat:2 }}</td>
+                        <td class="show-try hidden">₺{{ item.value_try|floatformat:"2g" }}</td>
+                        <td>
+                            <a href="{% url 'asset_detail' item.asset.pk %}" class="btn-link">Detay →</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="empty-state">Henüz varlık eklenmedi. <a href="{% url 'asset_add' %}">İlk varlığı ekle →</a></td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Döviz kurları (Python'dan JS'e)
+    const USD_TRY = Number({{ usd_try_js|safe }});
+    const EUR_TRY = Number({{ eur_try_js|safe }});
+
+    // Kategori verileri
+    const chartLabels = {{ chart_labels|safe }};
+    const chartValues = {{ chart_values|safe }};
+    const chartColors = {{ chart_colors|safe }};
+
+    // Pie chart
+    const ctx = document.getElementById('portfolioChart');
+    if (ctx && chartLabels.length > 0 && typeof Chart !== 'undefined') {
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: chartLabels,
+                datasets: [{
+                    data: chartValues,
+                    backgroundColor: chartColors,
+                    borderWidth: 2,
+                    borderColor: '#1e293b',
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: '#94a3b8', padding: 16, font: { size: 13 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                const val = ctx.parsed;
+                                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                                const pct = ((val / total) * 100).toFixed(1);
+                                return ` $${val.toLocaleString('tr-TR', {minimumFractionDigits: 2})} (%${pct})`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } else if (ctx && chartLabels.length > 0) {
+        console.warn('Chart.js yuklenemedi; grafik cizilmedi ama dashboard calismaya devam ediyor.');
+    }
+
+    // Para birimi switch
+    const toggle = document.getElementById('currency-toggle');
+    const totalUSD = document.getElementById('total-usd');
+    const totalTRY = document.getElementById('total-try');
+    const labelUSD = document.getElementById('label-usd');
+    const labelTRY = document.getElementById('label-try');
+
+    const catValueEls = document.querySelectorAll('.cat-value-usd');
+    const catValuesTRY = document.querySelectorAll('.cat-value-try');
+    const categoryCards = document.querySelectorAll('.category-card');
+    const showUSDCols = document.querySelectorAll('.show-usd');
+    const showTRYCols = document.querySelectorAll('.show-try');
+
+    // Category TRY değerlerini data-usd üzerinden üret
+    categoryCards.forEach((card, i) => {
+        const usdRaw = (card.dataset.usd || '0').replace(',', '.');
+        const usdVal = Number(usdRaw);
+        if (!Number.isNaN(usdVal) && catValuesTRY[i]) {
+            catValuesTRY[i].textContent = '₺' + (usdVal * USD_TRY).toLocaleString('tr-TR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            });
+        }
+    });
+
+    function applyCurrencyMode(isTRY) {
+        labelUSD.classList.toggle('active-label', !isTRY);
+        labelTRY.classList.toggle('active-label', isTRY);
+
+        totalUSD.classList.toggle('hidden', isTRY);
+        totalTRY.classList.toggle('hidden', !isTRY);
+
+        catValueEls.forEach(el => el.classList.toggle('hidden', isTRY));
+        catValuesTRY.forEach(el => el.classList.toggle('hidden', !isTRY));
+        showUSDCols.forEach(el => el.classList.toggle('hidden', isTRY));
+        showTRYCols.forEach(el => el.classList.toggle('hidden', !isTRY));
+    }
+
+    if (toggle) {
+        applyCurrencyMode(toggle.checked);
+        toggle.addEventListener('change', function() {
+            applyCurrencyMode(this.checked);
+        });
+    }
+
+    // Fiyat yenileme
+    function refreshPrices() {
+        const btn = document.getElementById('refresh-btn');
+        const icon = document.getElementById('refresh-icon');
+        btn.disabled = true;
+        icon.style.display = 'inline-block';
+        icon.classList.add('spinning');
+
+        fetch('{% url "api_refresh" %}')
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    location.reload();
+                }
+            })
+            .catch(() => {
+                btn.disabled = false;
+                icon.classList.remove('spinning');
+            });
+    }
+</script>
+{% endblock %}

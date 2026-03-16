@@ -1,0 +1,134 @@
+{% extends 'tracker/base.html' %}
+
+{% block title %}{{ action }} — Wealth Tracker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <a href="{% url 'asset_list' %}" class="back-link">← Geri</a>
+        <h1 class="page-title">{{ action }}</h1>
+    </div>
+</div>
+
+<div class="form-card">
+    <form method="post" id="asset-form">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label class="form-label">{{ form.name.label }}</label>
+            {{ form.name }}
+            {% if form.name.errors %}<div class="form-error">{{ form.name.errors }}</div>{% endif %}
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">{{ form.asset_type.label }}</label>
+                {{ form.asset_type }}
+                {% if form.asset_type.errors %}<div class="form-error">{{ form.asset_type.errors }}</div>{% endif %}
+            </div>
+            <div class="form-group">
+                <label class="form-label">{{ form.currency.label }}</label>
+                {{ form.currency }}
+                {% if form.currency.errors %}<div class="form-error">{{ form.currency.errors }}</div>{% endif %}
+            </div>
+        </div>
+
+        <!-- Sembol (kripto/hisse/altın için) -->
+        <div class="form-group" id="symbol-group">
+            <label class="form-label">
+                {{ form.symbol.label }}
+                <span class="form-hint">Kripto/hisse/altın için gerekli — BTC, AAPL, GC=F</span>
+            </label>
+            {{ form.symbol }}
+            <div class="gold-shortcuts hidden" id="gold-shortcuts">
+                <div class="form-hint" style="margin-bottom: 0.45rem;">
+                    Altın türü kısayolları: Ata Lira eklemek için Tip=Altın ve sembol=ATA_LIRA seç.
+                </div>
+                <div class="chip-row">
+                    <button type="button" class="chip-btn" data-symbol="ATA_LIRA">Ata Lira</button>
+                    <button type="button" class="chip-btn" data-symbol="CEYREK_ALTIN">Ceyrek</button>
+                    <button type="button" class="chip-btn" data-symbol="YARIM_ALTIN">Yarim</button>
+                    <button type="button" class="chip-btn" data-symbol="TAM_ALTIN">Tam</button>
+                    <button type="button" class="chip-btn" data-symbol="GRAM_ALTIN">Gram</button>
+                </div>
+            </div>
+            {% if form.symbol.errors %}<div class="form-error">{{ form.symbol.errors }}</div>{% endif %}
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">{{ form.quantity.label }}</label>
+                {{ form.quantity }}
+                {% if form.quantity.errors %}<div class="form-error">{{ form.quantity.errors }}</div>{% endif %}
+            </div>
+            <div class="form-group">
+                <label class="form-label">{{ form.purchase_price.label }}</label>
+                {{ form.purchase_price }}
+                {% if form.purchase_price.errors %}<div class="form-error">{{ form.purchase_price.errors }}</div>{% endif %}
+            </div>
+        </div>
+
+        <!-- Manuel fiyat (sadece manuel tipte göster) -->
+        <div class="form-group" id="manual-price-group" style="display:none;">
+            <label class="form-label">{{ form.current_price.label }}</label>
+            {{ form.current_price }}
+            <div class="form-hint">{{ form.current_price.help_text }}</div>
+            {% if form.current_price.errors %}<div class="form-error">{{ form.current_price.errors }}</div>{% endif %}
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">{{ form.notes.label }} <span class="form-hint">(opsiyonel)</span></label>
+            {{ form.notes }}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Kaydet</button>
+            {% if asset %}
+            <a href="{% url 'asset_detail' asset.pk %}" class="btn btn-secondary">İptal</a>
+            {% else %}
+            <a href="{% url 'dashboard' %}" class="btn btn-secondary">İptal</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const assetTypeSelect = document.getElementById('id_asset_type');
+    const currencySelect = document.getElementById('id_currency');
+    const symbolInput = document.getElementById('id_symbol');
+    const symbolGroup = document.getElementById('symbol-group');
+    const manualPriceGroup = document.getElementById('manual-price-group');
+    const goldShortcuts = document.getElementById('gold-shortcuts');
+
+    function toggleFields() {
+        const val = assetTypeSelect.value;
+        const isManual = val === 'manual';
+        const isGold = val === 'gold';
+        symbolGroup.style.display = isManual ? 'none' : '';
+        manualPriceGroup.style.display = isManual ? '' : 'none';
+        goldShortcuts.classList.toggle('hidden', !isGold || isManual);
+
+        if (isGold && !currencySelect.value) {
+            currencySelect.value = 'TRY';
+        }
+    }
+
+    document.querySelectorAll('.chip-btn').forEach((btn) => {
+        btn.addEventListener('click', function() {
+            const selectedSymbol = this.dataset.symbol;
+            if (symbolInput) {
+                symbolInput.value = selectedSymbol;
+                symbolInput.focus();
+            }
+            if (currencySelect && (selectedSymbol.endsWith('_ALTIN') || selectedSymbol === 'ATA_LIRA')) {
+                currencySelect.value = 'TRY';
+            }
+        });
+    });
+
+    assetTypeSelect.addEventListener('change', toggleFields);
+    toggleFields(); // sayfa yüklenince
+</script>
+{% endblock %}

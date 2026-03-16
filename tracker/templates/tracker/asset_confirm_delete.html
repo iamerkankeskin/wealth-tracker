@@ -1,0 +1,23 @@
+{% extends 'tracker/base.html' %}
+
+{% block title %}Varlığı Sil — {{ asset.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <a href="{% url 'asset_detail' asset.pk %}" class="back-link">← Geri</a>
+</div>
+
+<div class="form-card delete-card">
+    <div class="delete-icon">⚠️</div>
+    <h2>{{ asset.name }} silinsin mi?</h2>
+    <p>Bu varlık ve tüm işlem geçmişi <strong>kalıcı olarak silinecek</strong>. Bu işlem geri alınamaz.</p>
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-actions" style="justify-content: center;">
+            <button type="submit" class="btn btn-danger">Evet, Sil</button>
+            <a href="{% url 'asset_detail' asset.pk %}" class="btn btn-secondary">İptal</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

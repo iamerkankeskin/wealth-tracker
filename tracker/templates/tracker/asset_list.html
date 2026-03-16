@@ -1,0 +1,112 @@
+{% extends 'tracker/base.html' %}
+
+{% block title %}Varlıklar — Wealth Tracker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Varlık Listesi</h1>
+    <a href="{% url 'asset_add' %}" class="btn btn-primary">+ Yeni Varlık</a>
+</div>
+
+<!-- Filtre tabs -->
+<div class="filter-tabs" id="filter-tabs">
+    <button class="filter-tab active" data-filter="all">Tümü</button>
+    <button class="filter-tab" data-filter="crypto">Kripto</button>
+    <button class="filter-tab" data-filter="stock">Hisse</button>
+    <button class="filter-tab" data-filter="gold">Altın</button>
+    <button class="filter-tab" data-filter="manual">Manuel</button>
+</div>
+
+<div class="currency-switch" style="margin-bottom:1rem;">
+    <span class="switch-label" id="label-usd2">USD</span>
+    <label class="toggle">
+        <input type="checkbox" id="currency-toggle2">
+        <span class="toggle-slider"></span>
+    </label>
+    <span class="switch-label" id="label-try2">TRY</span>
+</div>
+
+<div class="table-card">
+    <div class="table-wrapper">
+        <table class="data-table" id="assets-table">
+            <thead>
+                <tr>
+                    <th>Varlık</th>
+                    <th>Tip</th>
+                    <th>Sembol</th>
+                    <th>Miktar</th>
+                    <th>Güncel Fiyat</th>
+                    <th class="show-usd2">Değer (USD)</th>
+                    <th class="show-try2 hidden">Değer (TRY)</th>
+                    <th>K/Z %</th>
+                    <th>İşlemler</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in asset_data %}
+                <tr class="asset-row" data-type="{{ item.asset.asset_type }}">
+                    <td>
+                        <div class="asset-name">{{ item.asset.name }}</div>
+                        {% if item.asset.notes %}<div class="asset-note">{{ item.asset.notes|truncatechars:40 }}</div>{% endif %}
+                    </td>
+                    <td><span class="badge badge-{{ item.asset.asset_type }}">{{ item.asset.get_asset_type_display }}</span></td>
+                    <td>{{ item.asset.symbol|default:"—" }}</td>
+                    <td>{{ item.asset.quantity }}</td>
+                    <td>
+                        {% if item.asset.asset_type == 'manual' %}
+                            {{ item.asset.current_price }} {{ item.asset.currency }}
+                        {% else %}
+                            ${{ item.asset.current_price|floatformat:2 }}
+                        {% endif %}
+                    </td>
+                    <td class="show-usd2">${{ item.value_usd|floatformat:2 }}</td>
+                    <td class="show-try2 hidden">₺{{ item.value_try|floatformat:"2g" }}</td>
+                    <td>
+                        {% if item.asset.profit_loss_pct > 0 %}
+                            <span class="pct positive">+{{ item.asset.profit_loss_pct|floatformat:1 }}%</span>
+                        {% elif item.asset.profit_loss_pct < 0 %}
+                            <span class="pct negative">{{ item.asset.profit_loss_pct|floatformat:1 }}%</span>
+                        {% else %}
+                            <span class="pct">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="actions-cell">
+                        <a href="{% url 'asset_detail' item.asset.pk %}" class="btn-link">Detay</a>
+                        <a href="{% url 'transaction_add' item.asset.pk %}" class="btn-link">+ İşlem</a>
+                        <a href="{% url 'asset_edit' item.asset.pk %}" class="btn-link btn-edit">Düzenle</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="9" class="empty-state">Henüz varlık eklenmedi. <a href="{% url 'asset_add' %}">Ekle →</a></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const USD_TRY = {{ usd_try_rate }};
+
+    // Filtre tabs
+    document.querySelectorAll('.filter-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            const filter = this.dataset.filter;
+            document.querySelectorAll('.asset-row').forEach(row => {
+                row.style.display = (filter === 'all' || row.dataset.type === filter) ? '' : 'none';
+            });
+        });
+    });
+
+    // Currency toggle
+    const toggle2 = document.getElementById('currency-toggle2');
+    toggle2.addEventListener('change', function() {
+        const isTRY = this.checked;
+        document.querySelectorAll('.show-usd2').forEach(el => el.classList.toggle('hidden', isTRY));
+        document.querySelectorAll('.show-try2').forEach(el => el.classList.toggle('hidden', !isTRY));
+    });
+</script>
+{% endblock %}

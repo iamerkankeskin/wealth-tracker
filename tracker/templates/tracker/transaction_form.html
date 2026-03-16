@@ -1,0 +1,62 @@
+{% extends 'tracker/base.html' %}
+
+{% block title %}İşlem Ekle — {{ asset.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <a href="{% url 'asset_detail' asset.pk %}" class="back-link">← {{ asset.name }}</a>
+        <h1 class="page-title">İşlem Ekle</h1>
+    </div>
+</div>
+
+<div class="form-card">
+    <div class="asset-info-banner">
+        <span><strong>{{ asset.name }}</strong></span>
+        <span>Mevcut Miktar: <strong>{{ asset.quantity }}</strong></span>
+        <span>Güncel Fiyat: <strong>
+            {% if asset.asset_type == 'manual' %}{{ asset.current_price }} {{ asset.currency }}
+            {% else %}${{ asset.current_price|floatformat:2 }}{% endif %}
+        </strong></span>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label class="form-label">{{ form.transaction_type.label }}</label>
+            {{ form.transaction_type }}
+            {% if form.transaction_type.errors %}<div class="form-error">{{ form.transaction_type.errors }}</div>{% endif %}
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">{{ form.quantity.label }}</label>
+                {{ form.quantity }}
+                {% if form.quantity.errors %}<div class="form-error">{{ form.quantity.errors }}</div>{% endif %}
+            </div>
+            <div class="form-group">
+                <label class="form-label">{{ form.price_at_time.label }}</label>
+                {{ form.price_at_time }}
+                {% if form.price_at_time.errors %}<div class="form-error">{{ form.price_at_time.errors }}</div>{% endif %}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">{{ form.date.label }}</label>
+            {{ form.date }}
+            {% if form.date.errors %}<div class="form-error">{{ form.date.errors }}</div>{% endif %}
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">{{ form.notes.label }} <span class="form-hint">(opsiyonel)</span></label>
+            {{ form.notes }}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">İşlemi Kaydet</button>
+            <a href="{% url 'asset_detail' asset.pk %}" class="btn btn-secondary">İptal</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

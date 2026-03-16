@@ -1,0 +1,134 @@
+{% extends 'tracker/base.html' %}
+
+{% block title %}{{ asset.name }} — Wealth Tracker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <a href="{% url 'asset_list' %}" class="back-link">← Varlıklara Dön</a>
+        <h1 class="page-title">{{ asset.name }}</h1>
+        <span class="badge badge-{{ asset.asset_type }}">{{ asset.get_asset_type_display }}</span>
+        {% if asset.symbol %}<span class="symbol-badge">{{ asset.symbol }}</span>{% endif %}
+    </div>
+    <div class="header-actions">
+        <a href="{% url 'transaction_add' asset.pk %}" class="btn btn-primary">+ İşlem Ekle</a>
+        <a href="{% url 'asset_edit' asset.pk %}" class="btn btn-secondary">Düzenle</a>
+        <a href="{% url 'asset_delete' asset.pk %}" class="btn btn-danger">Sil</a>
+    </div>
+</div>
+
+<!-- Özet Kartlar -->
+<div class="detail-grid">
+    <div class="detail-card">
+        <div class="detail-label">Miktar</div>
+        <div class="detail-value">{{ asset.quantity|floatformat:0 }}</div>
+    </div>
+    <div class="detail-card">
+        <div class="detail-label">Güncel Fiyat</div>
+        <div class="detail-value">
+            {% if asset.asset_type == 'manual' %}
+                {{ asset.current_price }} {{ asset.currency }}
+            {% else %}
+                ${{ asset.current_price|floatformat:2 }}
+            {% endif %}
+        </div>
+    </div>
+    <div class="detail-card">
+        <div class="detail-label">Toplam Değer</div>
+        <div class="detail-value highlight">
+            {% if asset.asset_type == 'manual' %}
+                {{ asset.current_value|floatformat:2 }} {{ asset.currency }}
+            {% else %}
+                ${{ asset.current_value|floatformat:2 }}
+            {% endif %}
+        </div>
+        {% if usd_try_rate %}
+        <div class="detail-sub">≈ ₺{{ asset.current_value|floatformat:"0g" }} × {{ usd_try_rate|floatformat:"2g" }}</div>
+        {% endif %}
+    </div>
+    <div class="detail-card">
+        <div class="detail-label">Alış Fiyatı</div>
+        <div class="detail-value">${{ asset.purchase_price|floatformat:2 }}</div>
+    </div>
+    <div class="detail-card">
+        <div class="detail-label">Kar / Zarar</div>
+        <div class="detail-value {% if asset.profit_loss > 0 %}positive{% elif asset.profit_loss < 0 %}negative{% endif %}">
+            {% if asset.profit_loss > 0 %}+{% endif %}${{ asset.profit_loss|floatformat:2 }}
+        </div>
+        <div class="detail-sub {% if asset.profit_loss_pct > 0 %}positive{% elif asset.profit_loss_pct < 0 %}negative{% endif %}">
+            {% if asset.profit_loss_pct > 0 %}+{% endif %}{{ asset.profit_loss_pct|floatformat:2 }}%
+        </div>
+    </div>
+    <div class="detail-card">
+        <div class="detail-label">Son Güncelleme</div>
+        <div class="detail-value" style="font-size:0.95rem;">{{ asset.last_updated|date:"d.m.Y H:i" }}</div>
+        {% if asset.asset_type != 'manual' %}
+        <button class="btn-link" onclick="refreshSingle({{ asset.pk }})">↻ Yenile</button>
+        {% endif %}
+    </div>
+</div>
+
+{% if asset.notes %}
+<div class="notes-card">
+    <strong>Not:</strong> {{ asset.notes }}
+</div>
+{% endif %}
+
+<!-- İşlem Geçmişi -->
+<div class="section-header">
+    <h2 class="section-title">İşlem Geçmişi</h2>
+    <a href="{% url 'transaction_add' asset.pk %}" class="btn-link">+ Yeni İşlem</a>
+</div>
+
+<div class="table-card">
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Tarih</th>
+                    <th>Tip</th>
+                    <th>Miktar</th>
+                    <th>Fiyat</th>
+                    <th>Toplam</th>
+                    <th>Not</th>
+                    <th>İşlem</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tx in transactions %}
+                <tr>
+                    <td>{{ tx.date|date:"d.m.Y H:i" }}</td>
+                    <td>
+                        <span class="badge badge-{{ tx.transaction_type }}">{{ tx.get_transaction_type_display }}</span>
+                    </td>
+                    <td>{{ tx.quantity|floatformat:0 }}</td>
+                    <td>${{ tx.price_at_time|floatformat:2 }}</td>
+                    <td>${{ tx.total_value|floatformat:2 }}</td>
+                    <td>{{ tx.notes|default:"—" }}</td>
+                    <td>
+                        <form method="post" action="{% url 'transaction_delete' asset.pk tx.pk %}" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-link" onclick="return confirm('Bu işlemi silmek istediğine emin misin?');">Sil</button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="empty-state">İşlem kaydı yok.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function refreshSingle(pk) {
+        fetch(`/api/refresh/${pk}/`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') location.reload();
+            });
+    }
+</script>
+{% endblock %}
